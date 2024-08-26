@@ -10,7 +10,7 @@ The package can be installed from NuGet
 dotnet add package KubernetesOperatorSdk
 ```
 
-To create a controller service, we have to inherit our service class from `KubeController<>` and specify the resource type we want to watch. The example below is going to handle a Thing custom resource definition.
+To create a controller service, we have to inherit our service class from `KubeController<>` and specify the resource type we want to watch. The example below is going to handle a *Thing* custom resource definition.
 
 ```csharp
 public sealed class V1Alpha1ThingController : KubeController<V1Alpha1Thing>
@@ -60,7 +60,7 @@ public sealed class V1Alpha1ThingController : KubeController<V1Alpha1Thing>
         /*
         This method is invoked when a resource object is added or modified. In this case, a Thing object.
 
-        Caution: Keep in that an object can be "added" when the service starts watching.
+        Caution: Keep in mind that an object can be "added" when the service starts watching.
         For that reason, we don't indicate whether the object was added or modified.
         */
 

@@ -48,7 +48,7 @@ public abstract class KubeController<T> : BackgroundService where T : IKubernete
     /// <summary>
     /// Triggered when the application host is ready to start the service.
     /// </summary>
-    public sealed override Task StartAsync( CancellationToken cancellationToken = default( CancellationToken ) )
+    public sealed override Task StartAsync( CancellationToken cancellationToken = default )
     {
         logger.LogInformation( "Started." );
 
@@ -58,7 +58,7 @@ public abstract class KubeController<T> : BackgroundService where T : IKubernete
     /// <summary>
     /// Triggered when the application host is performing a graceful shutdown.
     /// </summary>
-    public override Task StopAsync( CancellationToken cancellationToken = default( CancellationToken ) )
+    public override Task StopAsync( CancellationToken cancellationToken = default )
     {
         logger.LogInformation( "Stopped." );
 
@@ -76,21 +76,24 @@ public abstract class KubeController<T> : BackgroundService where T : IKubernete
         }
         catch ( Exception ex )
         {
-            logger.LogError( ex, ex.Message );
+            logger.LogError( ex, "Failed to initialize '{Name}' controller. {Error}", typeof( T ).Name, ex.Message );
 
-            await StopAsync();
-            return;
+            throw;
+
+            // await StopAsync( CancellationToken.None );
+            // return;
         }
 
-        var attr = typeof( T ).TryGetKubernetesEntityAttribute();
+        var attr = typeof( T )
+            .TryGetKubernetesEntityAttribute();
 
         if ( attr == null )
         {
             // T is not a valid kubernetes entity; missing the KubernetesEntity attribute
             // cancel execution
-            logger.LogError( $"Type '{typeof( T ).Name}' is missing a 'KubernetesEntity' attribute." );
+            logger.LogError( "Type '{Name}' is missing a 'KubernetesEntity' attribute.", typeof( T ).Name );
 
-            await StopAsync();
+            await StopAsync(  CancellationToken.None);
             return;
         }
 
@@ -98,11 +101,23 @@ public abstract class KubeController<T> : BackgroundService where T : IKubernete
         {
             try
             {
-                var logTarget = string.IsNullOrEmpty( Namespace )
-                    ? "cluster-wide"
-                    : $"in '{Namespace}' namespace";
-
-                logger.LogInformation( $"watching for '{attr.GetPluralName()}.{attr.GetApiVersion()}' objects {logTarget}." );
+                if ( string.IsNullOrEmpty ( Namespace ) )
+                {
+                    logger.LogInformation(
+                        "watching for '{Name}.{Version}' objects cluster-wide.",
+                        attr.GetPluralName(),
+                        attr.GetApiVersion()
+                    );
+                }
+                else
+                {
+                    logger.LogInformation(
+                        "watching for '{Name}.{Version}' objects in '{Namespace}' namespace.",
+                        attr.GetPluralName(),
+                        attr.GetApiVersion(),
+                        Namespace
+                    );
+                }
 
                 var result = await ListObjectAsync( attr, stoppingToken )
                     .ConfigureAwait( false );
@@ -116,7 +131,7 @@ public abstract class KubeController<T> : BackgroundService where T : IKubernete
             }
             catch ( k8s.Autorest.HttpOperationException ex )
             {
-                logger.LogError( ex.Message + "\n" + ex.Response.Content );
+                logger.LogError( "{Error}\n{Content}", ex.Message, ex.Response.Content );
 
                 await Task.Delay( 3000, stoppingToken );
             }
@@ -183,7 +198,7 @@ public abstract class KubeController<T> : BackgroundService where T : IKubernete
             }
             , onError: ex =>
             {
-                logger.LogError( ex, ex.Message );
+                logger.LogError( ex, "Watcher error. {Error}", ex.Message );
             }
         );
 
@@ -193,6 +208,6 @@ public abstract class KubeController<T> : BackgroundService where T : IKubernete
             await Task.Delay( 1000, cancellationToken );
         }
 
-        return ( watcher );
+        return watcher;
     }
 }
